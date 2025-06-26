@@ -3,3 +3,11 @@ myenv
 runs
 
 yolo11x.pt
+
+.env
+
+training/Juggling-7
+training/runs
+training/yolo11n.pt
+
+models/*
