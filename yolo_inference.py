@@ -13,8 +13,6 @@ import cv2
 import numpy as np
 import os
 
-# === CONFIGURATION ===
-MODEL_PATH = "models/best.pt"
 VIDEO_PATH = "input_videos/youtube1.mp4"
 OUTPUT_PATH = "output_videos/juggle_counter.mp4"
 BALL_CLASS_ID = 0  # update if different
@@ -22,42 +20,34 @@ FOOT_CLASS_ID = 1
 DIST_THRESHOLD = 100
 COOLDOWN_FRAMES = 10
 
-# === INIT ===
-model = YOLO(MODEL_PATH)
-cap = cv2.VideoCapture(VIDEO_PATH)
+model = YOLO('models/best.pt')
+cap = cv2.VideoCapture(0)
 
-# Video settings
+fourcc = cv2.VideoWriter_fourcc(*'mp4v')
 width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-fps = cap.get(cv2.CAP_PROP_FPS)
+fps = cap.get(cv2.CAP_PROP_FPS) # how why how???
 
-# Make output folder if needed
-os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
-
-# Output writer
-fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-out = cv2.VideoWriter(OUTPUT_PATH, fourcc, fps, (width, height))
+out = cv2.VideoWriter('output_videos/juggle_counter.mp4', fourcc, fps, (width, height))
 
 juggle_count = 0
-cooldown = 0
+was_above = True
+is_below = False
 
-def get_center(box):
-    x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
-    return (x1 + x2) / 2, (y1 + y2) / 2
-
-# === PROCESS VIDEO FRAME-BY-FRAME ===
 while cap.isOpened():
     ret, frame = cap.read()
     if not ret:
         break
 
-    results = model.predict(frame, device=0, verbose=False)[0]
+    results = model.track(frame, device=0, verbose=False, persist=True)
 
-    foot_center, ball_center = None, None
-    for box in results.boxes:
+    foot_top_y, ball_bottom_y = None, None
+
+    for box in results[0].boxes:
         cls_id = int(box.cls[0])
-        center = get_center(box)
         x1, y1, x2, y2 = map(int, box.xyxy[0].cpu().numpy())
+        box_id = box.id
+        
 
         # Draw bounding boxes
         label = "Foot" if cls_id == FOOT_CLASS_ID else "Ball" if cls_id == BALL_CLASS_ID else str(cls_id)
@@ -65,32 +55,31 @@ while cap.isOpened():
         cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
         cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
+        # print('Label', label, '| box_id', box_id)
+
         if cls_id == FOOT_CLASS_ID:
-            foot_center = center
+            foot_top_y = y1  # top of foot bounding box
         elif cls_id == BALL_CLASS_ID:
-            ball_center = center
+            ball_bottom_y = y2  # bottom of ball bounding box
 
-    # Calculate and update juggle count
-    if foot_center and ball_center:
-        distance = np.linalg.norm(np.array(foot_center) - np.array(ball_center))
+    if foot_top_y is not None and ball_bottom_y is not None:
 
-        if distance < DIST_THRESHOLD and cooldown == 0:
+        if not is_below and ball_bottom_y > (foot_top_y - 10):
+            is_below = True
+        elif is_below and ball_bottom_y < foot_top_y:
+            is_below = False
             juggle_count += 1
-            cooldown = COOLDOWN_FRAMES
-        elif cooldown > 0:
-            cooldown -= 1
 
     # Overlay juggle count on frame
-    cv2.putText(frame, f'Juggles: {juggle_count}', (30, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 255, 255), 3)
+    cv2.putText(frame, f'Juggles: {juggle_count}', (100, 100), cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 255, 255), 3)
 
     # Write frame to output
     out.write(frame)
 
-# === CLEANUP ===
 cap.release()
 out.release()
-print(f"✅ Done! Final juggle count: {juggle_count}")
-print(f"📁 Video saved at: {OUTPUT_PATH}")
+print(f"final juggle count: {juggle_count}")
+print(f"video saved at: {OUTPUT_PATH}")
 
 
     
