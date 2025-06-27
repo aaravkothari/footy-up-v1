@@ -21,7 +21,7 @@ DIST_THRESHOLD = 100
 COOLDOWN_FRAMES = 10
 
 model = YOLO('models/best.pt')
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture('input_videos/youtube1.mp4')
 
 fourcc = cv2.VideoWriter_fourcc(*'mp4v')
 width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -53,7 +53,7 @@ while cap.isOpened():
         label = "Foot" if cls_id == FOOT_CLASS_ID else "Ball" if cls_id == BALL_CLASS_ID else str(cls_id)
         color = (0, 255, 0) if cls_id == FOOT_CLASS_ID else (0, 0, 255)
         cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-        cv2.putText(frame, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+        cv2.putText(frame, f'{label} ID: {int(box_id)}', (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
         # print('Label', label, '| box_id', box_id)
 
@@ -64,7 +64,7 @@ while cap.isOpened():
 
     if foot_top_y is not None and ball_bottom_y is not None:
 
-        if not is_below and ball_bottom_y > (foot_top_y - 10):
+        if not is_below and ball_bottom_y > foot_top_y:
             is_below = True
         elif is_below and ball_bottom_y < foot_top_y:
             is_below = False
@@ -80,6 +80,3 @@ cap.release()
 out.release()
 print(f"final juggle count: {juggle_count}")
 print(f"video saved at: {OUTPUT_PATH}")
-
-
-    
